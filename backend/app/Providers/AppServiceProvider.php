@@ -24,5 +24,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Product::observe(InventoryLogObserver::class);
         Category::observe(InventoryLogObserver::class);
+
     }
 }

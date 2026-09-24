@@ -37,6 +37,16 @@ return [
 
     'mailers' => [
 
+        'brevo' => [
+            'transport' => 'smtp',
+            'scheme' => null,
+            'host' => env('BREVO_SMTP_HOST', 'smtp-relay.brevo.com'),
+            'port' => (int) env('BREVO_SMTP_PORT', 587),
+            'username' => env('BREVO_SMTP_LOGIN'),
+            'password' => env('BREVO_KEY'),
+            'timeout' => 30,
+        ],
+
         'smtp' => [
             'transport' => 'smtp',
             'scheme' => env('MAIL_SCHEME'),

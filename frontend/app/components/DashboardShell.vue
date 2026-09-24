@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { apiErrorMessage, apiWrite } from '~/utils/api'
+
 defineProps<{ fitViewport?: boolean, inventoryViewport?: boolean }>()
+
+type CreatedInvite = { email: string, invite_url: string, company_name: string | null }
 
 const auth = useAuthStore()
 const loading = ref(true)
@@ -8,7 +12,20 @@ const userMenuOpen = ref(false)
 const userMenu = ref<HTMLElement | null>(null)
 const inviteOpen = ref(false)
 const inviteForm = reactive({ email: '', role: 'employee' as 'employee' | 'admin' })
-const preparedInvite = ref<{ email: string, role: 'employee' | 'admin' } | null>(null)
+const sentInvite = ref<CreatedInvite | null>(null)
+const sendingInvite = ref(false)
+const inviteError = ref('')
+const linkCopied = ref(false)
+const copyError = ref('')
+
+const whatsappInviteUrl = computed(() => {
+  if (!sentInvite.value) return ''
+
+  const company = sentInvite.value.company_name
+  const message = `Olá! Você recebeu um convite para acessar a Winx${company ? ` com a equipe da ${company}` : ''}. Crie sua conta pelo link: ${sentInvite.value.invite_url}`
+
+  return `https://wa.me/?text=${encodeURIComponent(message)}`
+})
 
 const initials = computed(() => {
   const names = auth.user?.name.trim().split(/\s+/).filter(Boolean) ?? []
@@ -29,12 +46,38 @@ function closeMenuOnOutside(event: PointerEvent): void {
 function openInvite(): void {
   userMenuOpen.value = false
   Object.assign(inviteForm, { email: '', role: 'employee' })
-  preparedInvite.value = null
+  sentInvite.value = null
+  inviteError.value = ''
+  linkCopied.value = false
+  copyError.value = ''
   inviteOpen.value = true
 }
 
-function prepareInvite(): void {
-  preparedInvite.value = { email: inviteForm.email.trim(), role: inviteForm.role }
+async function copyInviteLink(): Promise<void> {
+  if (!sentInvite.value) return
+
+  copyError.value = ''
+
+  try {
+    await navigator.clipboard.writeText(sentInvite.value.invite_url)
+    linkCopied.value = true
+  } catch {
+    copyError.value = 'Não foi possível copiar o link. Selecione e copie o endereço acima.'
+  }
+}
+
+async function sendInvite(): Promise<void> {
+  inviteError.value = ''
+  sendingInvite.value = true
+
+  try {
+    const response = await apiWrite<{ data: CreatedInvite }>('/api/v1/invites', 'POST', inviteForm)
+    sentInvite.value = response.data
+  } catch (error) {
+    inviteError.value = apiErrorMessage(error, 'Não foi possível enviar o convite. Tente novamente.')
+  } finally {
+    sendingInvite.value = false
+  }
 }
 
 onMounted(async () => {
@@ -124,17 +167,29 @@ async function logout(): Promise<void> {
     </div>
 
     <InventoryModal :open="inviteOpen" title="Convidar usuário" eyebrow="Equipe" @close="inviteOpen = false">
-      <form v-if="!preparedInvite" id="invite-user-form" class="inventory-form" @submit.prevent="prepareInvite">
+      <form v-if="!sentInvite" id="invite-user-form" class="inventory-form" @submit.prevent="sendInvite">
         <label>E-mail <input v-model.trim="inviteForm.email" type="email" autocomplete="email" placeholder="nome@empresa.com" required></label>
         <label>Papel <select v-model="inviteForm.role" required><option value="employee">Funcionário</option><option value="admin">Admin</option></select></label>
-        <p class="inventory-form-note">O envio do convite será ativado quando a API de convites estiver disponível.</p>
+        <p v-if="inviteError" class="form-alert" role="alert">{{ inviteError }}</p>
       </form>
-      <p v-else class="inventory-confirmation" role="status">
-        Convite para {{ preparedInvite.email }} ({{ preparedInvite.role === 'admin' ? 'Admin' : 'Funcionário' }}) preparado. Nenhum e-mail foi enviado.
-      </p>
+      <div v-else class="invite-success">
+        <p class="inventory-confirmation" role="status">
+          Um email foi enviado para <strong>{{ sentInvite.email }}</strong>.<br>
+          Caso não encontre o convite, confira também a caixa de spam.
+        </p>
+        <div class="invite-link-group">
+          <span class="invite-link-label">Link do convite</span>
+          <a class="invite-link" :href="sentInvite.invite_url" target="_blank" rel="noopener noreferrer">{{ sentInvite.invite_url }}</a>
+        </div>
+        <div class="invite-share-actions">
+          <button class="button button-outline" type="button" @click="copyInviteLink"><AppIcon name="copy" aria-hidden="true" /> {{ linkCopied ? 'Copiado!' : 'Copiar link' }}</button>
+          <a class="button button-navy" :href="whatsappInviteUrl" target="_blank" rel="noopener noreferrer"><AppIcon name="message" aria-hidden="true" /> Enviar pelo WhatsApp</a>
+        </div>
+        <p v-if="copyError" class="form-alert" role="alert">{{ copyError }}</p>
+      </div>
       <template #footer>
-        <button v-if="preparedInvite" class="button button-navy" type="button" @click="inviteOpen = false">Fechar</button>
-        <template v-else><button class="button button-outline" type="button" @click="inviteOpen = false">Cancelar</button><button class="button button-navy" type="submit" form="invite-user-form">Preparar convite</button></template>
+        <button v-if="sentInvite" class="button button-navy" type="button" @click="inviteOpen = false">Fechar</button>
+        <template v-else><button class="button button-outline" type="button" :disabled="sendingInvite" @click="inviteOpen = false">Cancelar</button><button class="button button-navy" type="submit" form="invite-user-form" :disabled="sendingInvite">{{ sendingInvite ? 'Enviando...' : 'Enviar convite' }}</button></template>
       </template>
     </InventoryModal>
   </div>

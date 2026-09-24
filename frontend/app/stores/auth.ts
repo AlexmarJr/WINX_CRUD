@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { apiGet, apiWrite } from '~/utils/api'
+import { useInventoryStore } from '~/stores/inventory'
 
 export interface AuthUser {
   id: string
@@ -21,42 +23,6 @@ interface RegisterPayload {
   password_confirmation: string
 }
 
-function apiBaseUrl(): string {
-  const configured = useRuntimeConfig().public.apiBaseUrl
-
-  if (configured) {
-    return configured.replace(/\/$/, '')
-  }
-
-  return `http://${window.location.hostname}:8000`
-}
-
-function xsrfToken(): string {
-  const cookie = document.cookie.split('; ').find(value => value.startsWith('XSRF-TOKEN='))
-  return cookie ? decodeURIComponent(cookie.substring('XSRF-TOKEN='.length)) : ''
-}
-
-async function initializeCsrf(): Promise<void> {
-  await $fetch(`${apiBaseUrl()}/sanctum/csrf-cookie`, {
-    credentials: 'include',
-    headers: { Accept: 'application/json' }
-  })
-}
-
-async function postAuth<T>(path: string, body?: object): Promise<T> {
-  await initializeCsrf()
-
-  return await $fetch<T>(`${apiBaseUrl()}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      'X-XSRF-TOKEN': xsrfToken()
-    },
-    body
-  })
-}
-
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as AuthUser | null,
@@ -64,19 +30,20 @@ export const useAuthStore = defineStore('auth', {
   }),
   actions: {
     async register(payload: RegisterPayload): Promise<void> {
-      this.user = await postAuth<AuthUser>('/api/register', payload)
+      this.user = await apiWrite<AuthUser>('/api/v1/register', 'POST', payload)
+      this.initialized = true
+    },
+    async acceptInvite(token: string, payload: { name: string, password: string, password_confirmation: string }): Promise<void> {
+      this.user = await apiWrite<AuthUser>(`/api/v1/invites/${encodeURIComponent(token)}/accept`, 'POST', payload)
       this.initialized = true
     },
     async login(payload: LoginPayload): Promise<void> {
-      this.user = await postAuth<AuthUser>('/api/login', payload)
+      this.user = await apiWrite<AuthUser>('/api/v1/login', 'POST', payload)
       this.initialized = true
     },
     async refresh(): Promise<boolean> {
       try {
-        this.user = await $fetch<AuthUser>(`${apiBaseUrl()}/api/user`, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        })
+        this.user = await apiGet<AuthUser>('/api/v1/user')
       } catch {
         this.user = null
       }
@@ -85,7 +52,8 @@ export const useAuthStore = defineStore('auth', {
       return this.user !== null
     },
     async logout(): Promise<void> {
-      await postAuth<void>('/api/logout')
+      await apiWrite<void>('/api/v1/logout', 'POST')
+      useInventoryStore().resetInventory()
       this.user = null
       this.initialized = true
     }

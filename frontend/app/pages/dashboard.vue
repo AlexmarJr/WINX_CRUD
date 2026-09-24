@@ -2,19 +2,13 @@
 useHead({ title: 'Minha área · Winx' })
 
 const auth = useAuthStore()
+const inventory = useInventoryStore()
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+const integer = new Intl.NumberFormat('pt-BR')
 
-const lowStockProducts = [
-  { name: 'Mouse sem fio M185', category: 'Periféricos', quantity: 2, status: 'Crítico' },
-  { name: 'Teclado mecânico K500', category: 'Periféricos', quantity: 3, status: 'Atenção' },
-  { name: 'Monitor LED 24"', category: 'Monitores', quantity: 5, status: 'Atenção' },
-  { name: 'Headset USB Pro', category: 'Áudio', quantity: 7, status: 'Atenção' },
-  { name: 'Webcam Full HD', category: 'Vídeo', quantity: 8, status: 'Atenção' },
-  { name: 'Cabo HDMI 2 m', category: 'Acessórios', quantity: 9, status: 'Atenção' },
-  { name: 'Hub USB-C 6 portas', category: 'Acessórios', quantity: 10, status: 'Atenção' },
-  { name: 'Suporte para notebook', category: 'Acessórios', quantity: 11, status: 'Atenção' },
-  { name: 'Caixa de som compacta', category: 'Áudio', quantity: 12, status: 'Atenção' },
-  { name: 'Adaptador de rede USB', category: 'Acessórios', quantity: 13, status: 'Atenção' }
-]
+watch(() => auth.user?.id, (id) => {
+  if (id && import.meta.client) void inventory.loadSummary()
+}, { immediate: true })
 </script>
 
 <template>
@@ -22,12 +16,11 @@ const lowStockProducts = [
     <div v-if="auth.user" class="dashboard-overview">
       <div class="overview-heading">
         <div>
-          <span class="eyebrow"><span class="eyebrow-dot" /> Visão geral</span>
           <h1>Olá, <em>{{ auth.user.name.split(' ')[0] }}.</em></h1>
-          <p>Resumo do estoque e itens que pedem atenção.</p>
         </div>
-        <span class="sample-data-label">Dados de exemplo</span>
       </div>
+
+      <p v-if="inventory.summaryError" class="inventory-error" role="alert">{{ inventory.summaryError }}</p>
 
       <section class="overview-cards" aria-label="Resumo do estoque">
         <article class="overview-card">
@@ -40,11 +33,11 @@ const lowStockProducts = [
           </div>
           <div class="overview-card-metrics">
             <div>
-              <strong>128</strong>
+              <strong>{{ inventory.summary ? integer.format(inventory.summary.product_count) : '—' }}</strong>
               <span>Produtos individuais</span>
             </div>
             <div>
-              <strong>3.824</strong>
+              <strong>{{ inventory.summary ? integer.format(inventory.summary.total_units) : '—' }}</strong>
               <span>Unidades no total</span>
             </div>
           </div>
@@ -60,11 +53,11 @@ const lowStockProducts = [
           </div>
           <div class="overview-card-metrics overview-card-metrics-money">
             <div>
-              <strong>R$ 48.760,00</strong>
+              <strong>{{ inventory.summary ? currency.format(Number(inventory.summary.purchase_total)) : '—' }}</strong>
               <span>Compra total</span>
             </div>
             <div>
-              <strong>R$ 79.940,00</strong>
+              <strong>{{ inventory.summary ? currency.format(Number(inventory.summary.resale_total)) : '—' }}</strong>
               <span>Revenda total</span>
             </div>
           </div>
@@ -81,17 +74,19 @@ const lowStockProducts = [
         </div>
 
         <ul class="stock-list">
-          <li v-for="product in lowStockProducts" :key="product.name" class="stock-item">
+          <li v-for="product in inventory.summary?.low_stock ?? []" :key="product.id" class="stock-item">
             <div class="stock-product">
               <strong>{{ product.name }}</strong>
-              <span>{{ product.category }}</span>
+              <span>{{ product.category ?? 'Sem categoria' }}</span>
             </div>
             <div class="stock-quantity">
-              <strong>{{ product.quantity }}</strong>
+              <strong>{{ product.stock }}</strong>
               <span>unidades</span>
             </div>
-            <span class="stock-status" :class="{ 'stock-status-critical': product.status === 'Crítico' }">{{ product.status }}</span>
+            <span class="stock-status" :class="{ 'stock-status-critical': product.stock <= 3 }">{{ product.stock <= 3 ? 'Crítico' : 'Atenção' }}</span>
           </li>
+          <li v-if="inventory.summaryLoading" class="stock-item">Carregando estoque...</li>
+          <li v-else-if="inventory.summary && !inventory.summary.low_stock.length" class="stock-item">Nenhum produto com estoque baixo.</li>
         </ul>
       </section>
     </div>

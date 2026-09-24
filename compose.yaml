@@ -17,6 +17,17 @@ services:
       postgres:
         condition: service_healthy
 
+  queue:
+    build: ./backend
+    working_dir: /var/www/html
+    volumes:
+      - ./backend:/var/www/html
+    command: php artisan queue:work database --queue=emails,default --sleep=1 --tries=3
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+
   frontend:
     image: node:24-alpine
     working_dir: /app

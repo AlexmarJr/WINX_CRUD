@@ -13,13 +13,13 @@ class AuthFlowTest extends TestCase
 
     public function test_guest_cannot_access_the_current_user(): void
     {
-        $this->getJson('/api/user')->assertUnauthorized();
+        $this->getJson('/api/v1/user')->assertUnauthorized();
     }
 
     public function test_user_can_register(): void
     {
         $this->withHeaders(['Origin' => 'http://localhost:3000'])
-            ->postJson('/api/register', [
+            ->postJson('/api/v1/register', [
                 'company_name' => 'Empresa Ana',
                 'company_abbreviation' => 'EA',
                 'name' => 'Ana Silva',
@@ -45,7 +45,7 @@ class AuthFlowTest extends TestCase
         User::factory()->create(['email' => 'ana@example.test']);
 
         $this->withHeaders(['Origin' => 'http://localhost:3000'])
-            ->postJson('/api/register', [
+            ->postJson('/api/v1/register', [
                 'company_name' => 'Outra Empresa',
                 'company_abbreviation' => 'OE',
                 'name' => 'Ana Silva',
@@ -61,7 +61,7 @@ class AuthFlowTest extends TestCase
 
     public function test_registration_requires_company_details_and_password_confirmation(): void
     {
-        $this->postJson('/api/register', [
+        $this->postJson('/api/v1/register', [
             'name' => 'Ana Silva',
             'email' => 'ana@example.test',
             'password' => 'password123',
@@ -82,7 +82,7 @@ class AuthFlowTest extends TestCase
         ]);
 
         $this->withHeaders(['Origin' => 'http://localhost:3000'])
-            ->postJson('/api/login', [
+            ->postJson('/api/v1/login', [
                 'email' => 'ana@example.test',
                 'password' => 'password123',
             ])
@@ -91,7 +91,7 @@ class AuthFlowTest extends TestCase
 
         $this->assertAuthenticatedAs($user);
 
-        $this->postJson('/api/logout')->assertNoContent();
+        $this->postJson('/api/v1/logout')->assertNoContent();
         $this->assertGuest('web');
     }
 
@@ -103,7 +103,7 @@ class AuthFlowTest extends TestCase
         ]);
 
         $this->withHeaders(['Origin' => 'http://localhost:3000'])
-            ->postJson('/api/login', [
+            ->postJson('/api/v1/login', [
                 'email' => 'ana@example.test',
                 'password' => 'incorrect',
             ])

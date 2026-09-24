@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
+import { apiErrorMessage, apiGet, apiWrite } from '~/utils/api'
 
 export interface InventoryCategory {
   id: string
   tenancy_id: string
+  user_id: string
   name: string
   description: string | null
   status: 'active' | 'inactive'
-  meta: Record<string, unknown> | null
-  deleted_at: string | null
-  user_id: string
+  products_count?: number
   created_at: string
   updated_at: string
 }
@@ -16,64 +16,250 @@ export interface InventoryCategory {
 export interface InventoryProduct {
   id: string
   tenancy_id: string
+  user_id: string
   category_id: string
+  category: InventoryCategory | null
   name: string
   description: string | null
-  cost: number | null
-  price: number
+  cost: string | null
+  price: string
   stock: number
   status: 'active' | 'inactive'
-  user_id: string
-  meta: Record<string, unknown> | null
-  deleted_at: string | null
   image: string | null
   created_at: string
   updated_at: string
 }
 
-const tenancyId = 'b0dc4e15-5010-4b72-9100-000000000001'
-const userId = 'b0dc4e15-5010-4b72-9100-000000000002'
-const categoryIds = {
-  peripherals: 'b0dc4e15-5010-4b72-9100-000000001001',
-  monitors: 'b0dc4e15-5010-4b72-9100-000000001002',
-  audio: 'b0dc4e15-5010-4b72-9100-000000001003',
-  accessories: 'b0dc4e15-5010-4b72-9100-000000001004',
-  video: 'b0dc4e15-5010-4b72-9100-000000001005'
+export interface LowStockProduct {
+  id: string
+  name: string
+  category: string | null
+  stock: number
 }
 
-const categories: InventoryCategory[] = [
-  { id: categoryIds.peripherals, tenancy_id: tenancyId, name: 'Periféricos', description: 'Mouses, teclados e acessórios de entrada.', status: 'active', meta: { department: 'Tecnologia' }, deleted_at: null, user_id: userId, created_at: '2026-09-01T09:00:00Z', updated_at: '2026-09-01T09:00:00Z' },
-  { id: categoryIds.monitors, tenancy_id: tenancyId, name: 'Monitores', description: 'Telas e displays para estações de trabalho.', status: 'active', meta: null, deleted_at: null, user_id: userId, created_at: '2026-09-02T09:00:00Z', updated_at: '2026-09-02T09:00:00Z' },
-  { id: categoryIds.audio, tenancy_id: tenancyId, name: 'Áudio', description: 'Headsets, caixas de som e microfones.', status: 'active', meta: null, deleted_at: null, user_id: userId, created_at: '2026-09-03T09:00:00Z', updated_at: '2026-09-03T09:00:00Z' },
-  { id: categoryIds.accessories, tenancy_id: tenancyId, name: 'Acessórios', description: 'Cabos, adaptadores e suportes.', status: 'active', meta: null, deleted_at: null, user_id: userId, created_at: '2026-09-04T09:00:00Z', updated_at: '2026-09-04T09:00:00Z' },
-  { id: categoryIds.video, tenancy_id: tenancyId, name: 'Vídeo', description: 'Câmeras e equipamentos de vídeo.', status: 'inactive', meta: null, deleted_at: null, user_id: userId, created_at: '2026-09-05T09:00:00Z', updated_at: '2026-09-05T09:00:00Z' }
-]
+export interface InventorySummary {
+  product_count: number
+  total_units: number
+  purchase_total: string
+  resale_total: string
+  low_stock: LowStockProduct[]
+}
 
-const products: InventoryProduct[] = [
-  { id: 'b0dc4e15-5010-4b72-9100-000000002001', tenancy_id: tenancyId, category_id: categoryIds.peripherals, name: 'Mouse sem fio M185', description: 'Mouse sem fio com conexão USB e bateria inclusa.', cost: 49.90, price: 89.90, stock: 2, status: 'active', user_id: userId, meta: { sku: 'MOU-185' }, deleted_at: null, image: null, created_at: '2026-09-10T10:00:00Z', updated_at: '2026-09-22T14:30:00Z' },
-  { id: 'b0dc4e15-5010-4b72-9100-000000002002', tenancy_id: tenancyId, category_id: categoryIds.peripherals, name: 'Teclado mecânico K500', description: 'Teclado mecânico compacto para uso diário.', cost: 159.00, price: 249.00, stock: 3, status: 'active', user_id: userId, meta: { sku: 'TEC-K500' }, deleted_at: null, image: null, created_at: '2026-09-11T10:00:00Z', updated_at: '2026-09-21T11:00:00Z' },
-  { id: 'b0dc4e15-5010-4b72-9100-000000002003', tenancy_id: tenancyId, category_id: categoryIds.monitors, name: 'Monitor LED 24"', description: 'Monitor Full HD de 24 polegadas.', cost: 620.00, price: 899.00, stock: 5, status: 'active', user_id: userId, meta: { sku: 'MON-24' }, deleted_at: null, image: null, created_at: '2026-09-12T10:00:00Z', updated_at: '2026-09-20T10:00:00Z' },
-  { id: 'b0dc4e15-5010-4b72-9100-000000002004', tenancy_id: tenancyId, category_id: categoryIds.audio, name: 'Headset USB Pro', description: 'Headset com microfone e conexão USB.', cost: 115.00, price: 189.00, stock: 7, status: 'active', user_id: userId, meta: { sku: 'AUD-PRO' }, deleted_at: null, image: null, created_at: '2026-09-13T10:00:00Z', updated_at: '2026-09-19T10:00:00Z' },
-  { id: 'b0dc4e15-5010-4b72-9100-000000002005', tenancy_id: tenancyId, category_id: categoryIds.video, name: 'Webcam Full HD', description: 'Webcam para reuniões e transmissões.', cost: 180.00, price: 299.00, stock: 8, status: 'inactive', user_id: userId, meta: { sku: 'VID-FHD' }, deleted_at: null, image: null, created_at: '2026-09-14T10:00:00Z', updated_at: '2026-09-18T10:00:00Z' },
-  { id: 'b0dc4e15-5010-4b72-9100-000000002006', tenancy_id: tenancyId, category_id: categoryIds.accessories, name: 'Cabo HDMI 2 m', description: 'Cabo HDMI de alta velocidade.', cost: 18.00, price: 39.90, stock: 9, status: 'active', user_id: userId, meta: { sku: 'CAB-HDMI-2' }, deleted_at: null, image: null, created_at: '2026-09-15T10:00:00Z', updated_at: '2026-09-17T10:00:00Z' }
-]
+interface ResourceResponse<T> {
+  data: T
+}
+
+interface PageResponse<T> {
+  data: T[]
+  meta: { current_page: number, last_page: number, total: number }
+}
+
+interface PaginationState {
+  currentPage: number
+  lastPage: number
+  total: number
+}
+
+const emptyPagination = (): PaginationState => ({ currentPage: 1, lastPage: 1, total: 0 })
+let categoriesRequest = 0
+let categoriesAbortController: AbortController | undefined
+let categoryOptionsRequest = 0
+let activeCategoryOptionsRequest = 0
+let productsRequest = 0
+let productsAbortController: AbortController | undefined
+let summaryRequest = 0
 
 export const useInventoryStore = defineStore('inventory', {
   state: () => ({
-    categories: categories.map(category => ({ ...category })),
-    products: products.map(product => ({ ...product }))
+    categories: [] as InventoryCategory[],
+    categoryOptions: [] as InventoryCategory[],
+    activeCategoryOptions: [] as InventoryCategory[],
+    products: [] as InventoryProduct[],
+    summary: null as InventorySummary | null,
+    categoriesPagination: emptyPagination(),
+    productsPagination: emptyPagination(),
+    categoriesLoading: false,
+    productsLoading: false,
+    summaryLoading: false,
+    categoriesError: '',
+    productsError: '',
+    summaryError: ''
   }),
   actions: {
-    addCategory(input: Pick<InventoryCategory, 'name' | 'description' | 'status' | 'meta'>): void {
-      const now = new Date().toISOString()
-      this.categories.unshift({ id: crypto.randomUUID(), tenancy_id: tenancyId, user_id: userId, deleted_at: null, created_at: now, updated_at: now, ...input })
+    async getProductMaxPrice(): Promise<string> {
+      const response = await apiGet<ResourceResponse<{ max_price: string }>>('/api/v1/products/max-price')
+      return response.data.max_price
     },
-    addProduct(input: Pick<InventoryProduct, 'category_id' | 'name' | 'description' | 'cost' | 'price' | 'stock' | 'status' | 'meta' | 'image'>): void {
-      const now = new Date().toISOString()
-      this.products.unshift({ id: crypto.randomUUID(), tenancy_id: tenancyId, user_id: userId, deleted_at: null, created_at: now, updated_at: now, ...input })
+
+    resetInventory(): void {
+      this.cancelCategoriesRequest()
+      categoryOptionsRequest += 1
+      activeCategoryOptionsRequest += 1
+      this.cancelProductsRequest()
+      summaryRequest += 1
+      this.$reset()
     },
-    removeProduct(id: string): void {
-      this.products = this.products.filter(product => product.id !== id)
+
+    cancelCategoriesRequest(): void {
+      categoriesRequest += 1
+      categoriesAbortController?.abort()
+      categoriesAbortController = undefined
+      this.categoriesLoading = false
+    },
+
+    cancelProductsRequest(): void {
+      productsRequest += 1
+      productsAbortController?.abort()
+      productsAbortController = undefined
+      this.productsLoading = false
+    },
+
+    async loadCategories(page = 1, search = '', sortBy = '', sortDir: 'asc' | 'desc' = 'asc'): Promise<void> {
+      this.cancelCategoriesRequest()
+      const request = categoriesRequest
+      const controller = new AbortController()
+      categoriesAbortController = controller
+      this.categoriesLoading = true
+      this.categoriesError = ''
+
+      try {
+        const response = await apiGet<PageResponse<InventoryCategory>>('/api/v1/categories', {
+          page,
+          per_page: 20,
+          ...(search ? { search } : {}),
+          ...(sortBy ? { sort_by: sortBy, sort_dir: sortDir } : {})
+        }, controller.signal)
+        if (request !== categoriesRequest) return
+        this.categories = response.data
+        this.categoriesPagination = {
+          currentPage: response.meta.current_page,
+          lastPage: response.meta.last_page,
+          total: response.meta.total
+        }
+      } catch (error) {
+        if (request !== categoriesRequest || controller.signal.aborted) return
+        this.categories = []
+        this.categoriesError = apiErrorMessage(error, 'Não foi possível carregar as categorias.')
+      } finally {
+        if (request === categoriesRequest) {
+          categoriesAbortController = undefined
+          this.categoriesLoading = false
+        }
+      }
+    },
+
+    async loadCategoryOptions(): Promise<void> {
+      const request = ++categoryOptionsRequest
+      const categories: InventoryCategory[] = []
+      let page = 1
+      let lastPage = 1
+
+      do {
+        const response = await apiGet<PageResponse<InventoryCategory>>('/api/v1/categories', { page, per_page: 100 })
+        if (request !== categoryOptionsRequest) return
+        categories.push(...response.data)
+        lastPage = response.meta.last_page
+        page += 1
+      } while (page <= lastPage)
+
+      if (request === categoryOptionsRequest) this.categoryOptions = categories
+    },
+
+    async loadActiveCategoryOptions(): Promise<void> {
+      const request = ++activeCategoryOptionsRequest
+      const categories: InventoryCategory[] = []
+      let page = 1
+      let lastPage = 1
+
+      do {
+        const response = await apiGet<PageResponse<InventoryCategory>>('/api/v1/categories', { page, per_page: 100, status: 'active' })
+        if (request !== activeCategoryOptionsRequest) return
+        categories.push(...response.data)
+        lastPage = response.meta.last_page
+        page += 1
+      } while (page <= lastPage)
+
+      if (request === activeCategoryOptionsRequest) this.activeCategoryOptions = categories
+    },
+
+    async loadProducts(page = 1, search = '', categoryId = '', minPrice = '', maxPrice = '', sortBy = '', sortDir: 'asc' | 'desc' = 'asc'): Promise<void> {
+      this.cancelProductsRequest()
+      const request = productsRequest
+      const controller = new AbortController()
+      productsAbortController = controller
+      this.productsLoading = true
+      this.productsError = ''
+
+      try {
+        const response = await apiGet<PageResponse<InventoryProduct>>('/api/v1/products', {
+          page,
+          per_page: 20,
+          ...(search ? { search } : {}),
+          ...(categoryId ? { category_id: categoryId } : {}),
+          ...(minPrice ? { min_price: minPrice } : {}),
+          ...(maxPrice ? { max_price: maxPrice } : {}),
+          ...(sortBy ? { sort_by: sortBy, sort_dir: sortDir } : {})
+        }, controller.signal)
+        if (request !== productsRequest) return
+        this.products = response.data
+        this.productsPagination = {
+          currentPage: response.meta.current_page,
+          lastPage: response.meta.last_page,
+          total: response.meta.total
+        }
+      } catch (error) {
+        if (request !== productsRequest || controller.signal.aborted) return
+        this.products = []
+        this.productsError = apiErrorMessage(error, 'Não foi possível carregar os produtos.')
+      } finally {
+        if (request === productsRequest) {
+          productsAbortController = undefined
+          this.productsLoading = false
+        }
+      }
+    },
+
+    async loadSummary(): Promise<void> {
+      const request = ++summaryRequest
+      this.summaryLoading = true
+      this.summaryError = ''
+
+      try {
+        const response = await apiGet<ResourceResponse<InventorySummary>>('/api/v1/dashboard/summary')
+        if (request !== summaryRequest) return
+        this.summary = response.data
+      } catch (error) {
+        if (request !== summaryRequest) return
+        this.summary = null
+        this.summaryError = apiErrorMessage(error, 'Não foi possível carregar o dashboard.')
+      } finally {
+        if (request === summaryRequest) this.summaryLoading = false
+      }
+    },
+
+    async createCategory(input: Pick<InventoryCategory, 'name' | 'description' | 'status'>): Promise<InventoryCategory> {
+      const response = await apiWrite<ResourceResponse<InventoryCategory>>('/api/v1/categories', 'POST', input)
+      return response.data
+    },
+
+    async updateCategory(id: string, input: Pick<InventoryCategory, 'name' | 'description' | 'status'>): Promise<InventoryCategory> {
+      const response = await apiWrite<ResourceResponse<InventoryCategory>>(`/api/v1/categories/${id}`, 'PATCH', input)
+      this.categoryOptions = this.categoryOptions.map(category => category.id === id ? { ...category, ...response.data } : category)
+      return response.data
+    },
+
+    async createProduct(input: Pick<InventoryProduct, 'category_id' | 'name' | 'description' | 'cost' | 'price' | 'stock' | 'status' | 'image'>): Promise<InventoryProduct> {
+      const response = await apiWrite<ResourceResponse<InventoryProduct>>('/api/v1/products', 'POST', input)
+      return response.data
+    },
+
+    async updateProduct(id: string, input: Pick<InventoryProduct, 'category_id' | 'name' | 'description' | 'cost' | 'price' | 'stock' | 'status' | 'image'>): Promise<InventoryProduct> {
+      const response = await apiWrite<ResourceResponse<InventoryProduct>>(`/api/v1/products/${id}`, 'PATCH', input)
+      return response.data
+    },
+
+    async deleteProduct(id: string): Promise<void> {
+      await apiWrite<void>(`/api/v1/products/${id}`, 'DELETE')
     }
   }
 })

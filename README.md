@@ -23,7 +23,9 @@ O Compose instala dependências, cria `backend/.env` e a chave da aplicação qu
 - Login: http://localhost:3000/login
 - Área autenticada: http://localhost:3000/dashboard
 
-O Nuxt usa sessões com cookies do Laravel Sanctum. O cadastro cria um usuário no PostgreSQL, faz login automaticamente e abre a área autenticada. O login aceita a opção de manter a sessão ativa. A API oferece `POST /api/register`, `POST /api/login`, `POST /api/logout` e `GET /api/user`.
+O Nuxt usa sessões com cookies do Laravel Sanctum. O cadastro cria um usuário no PostgreSQL, faz login automaticamente e abre a área autenticada. O login aceita a opção de manter a sessão ativa. A API é versionada em `/api/v1` e oferece `POST /api/v1/register`, `POST /api/v1/login`, `POST /api/v1/logout` e `GET /api/v1/user`.
+
+As rotas autenticadas incluem o CRUD REST de `/api/v1/products` e `/api/v1/categories`. A listagem de produtos aceita `search`, `category_id`, `status`, `min_price`, `max_price`, `per_page`, `sort_by` e `sort_dir`. Os limites de preço são inclusivos, em reais; `max_price` deve ser maior ou igual a `min_price` quando ambos forem enviados.
 
 Para executar os testes de autenticação:
 
@@ -31,4 +33,4 @@ Para executar os testes de autenticação:
 docker compose exec backend php artisan test --compact tests/Feature/AuthFlowTest.php
 ```
 
-O CRUD de produtos, logs e Elasticsearch ainda não foram implementados.
+Os logs assíncronos de alterações de produtos e o Elasticsearch ainda não foram implementados.

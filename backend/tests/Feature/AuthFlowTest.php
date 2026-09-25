@@ -153,4 +153,29 @@ class AuthFlowTest extends TestCase
 
         $this->assertGuest();
     }
+
+    public function test_inactive_account_receives_a_specific_message_only_with_correct_password(): void
+    {
+        User::factory()->create([
+            'email' => 'inactive@example.test',
+            'password' => 'password123',
+            'status' => 'inactive',
+        ]);
+
+        $this->postJson('/api/v1/login', [
+            'email' => 'inactive@example.test',
+            'password' => 'wrong-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.email.0', 'As credenciais informadas não conferem.');
+
+        $this->postJson('/api/v1/login', [
+            'email' => 'inactive@example.test',
+            'password' => 'password123',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.email.0', 'Sua conta foi desativada. Entre em contato com o administrador para mais informações.');
+
+        $this->assertGuest();
+    }
 }

@@ -1,0 +1,4 @@
+# O Dockerfile usa apenas imagens externas; o Compose monta o codigo em runtime.
+*
+!Dockerfile
+!.dockerignore

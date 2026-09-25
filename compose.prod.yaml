@@ -16,7 +16,7 @@ services:
       retries: 10
 
   backend:
-    image: winx-backend:oci
+    image: winx-backend:1.0.0
     pull_policy: never
     restart: unless-stopped
     environment: &backend_environment
@@ -61,7 +61,7 @@ services:
       start_period: 60s
 
   queue:
-    image: winx-backend:oci
+    image: winx-backend:1.0.0
     pull_policy: never
     restart: unless-stopped
     environment: *backend_environment
@@ -78,7 +78,7 @@ services:
       retries: 3
 
   frontend:
-    image: winx-frontend:oci
+    image: winx-frontend:1.0.0
     pull_policy: never
     restart: unless-stopped
     environment:

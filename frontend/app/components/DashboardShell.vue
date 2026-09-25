@@ -8,6 +8,7 @@ type CreatedInvite = { email: string, invite_url: string, company_name: string |
 const auth = useAuthStore()
 const appVersion = useRuntimeConfig().public.appVersion
 const loading = ref(true)
+const isLocal = useRuntimeConfig().public.appEnv === 'local'
 const signingOut = ref(false)
 const userMenuOpen = ref(false)
 const userMenu = ref<HTMLElement | null>(null)
@@ -116,6 +117,9 @@ async function logout(): Promise<void> {
   <div class="dashboard-page" :class="{ 'dashboard-page-fit': fitViewport, 'dashboard-page-inventory': inventoryViewport }">
     <header class="site-header page-container">
       <BrandMark />
+      <div v-if="auth.user" class="production-link-slot">
+        <a v-if="isLocal" class="production-link" href="https://winx.930f6cf3.sslip.io/" target="_blank" rel="noopener noreferrer">App em produção</a>
+      </div>
       <div v-if="auth.user" ref="userMenu" class="user-menu" @keydown.esc="userMenuOpen = false">
         <button class="user-menu-trigger" type="button" :aria-expanded="userMenuOpen" aria-controls="user-menu-panel" :aria-label="`Abrir menu de ${auth.user.name}`" @click="userMenuOpen = !userMenuOpen">
           <span class="user-avatar">{{ initials }}</span>

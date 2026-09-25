@@ -1,4 +1,9 @@
-# O Dockerfile usa apenas imagens externas; o Compose monta o codigo em runtime.
-*
-!Dockerfile
-!.dockerignore
+.git
+.env
+.env.*
+!.env.example
+.ai
+vendor
+node_modules
+.phpunit.result.cache
+storage/logs/*

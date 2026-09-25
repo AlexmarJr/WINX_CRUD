@@ -16,9 +16,8 @@ services:
       retries: 10
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+    image: winx-backend:oci
+    pull_policy: never
     restart: unless-stopped
     environment: &backend_environment
       APP_NAME: Winx
@@ -62,9 +61,8 @@ services:
       start_period: 60s
 
   queue:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+    image: winx-backend:oci
+    pull_policy: never
     restart: unless-stopped
     environment: *backend_environment
     volumes:
@@ -80,9 +78,8 @@ services:
       retries: 3
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
+    image: winx-frontend:oci
+    pull_policy: never
     restart: unless-stopped
     environment:
       NUXT_PUBLIC_API_BASE_URL: http://app.137.131.197.12.sslip.io

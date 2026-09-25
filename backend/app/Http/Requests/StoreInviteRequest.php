@@ -25,7 +25,7 @@ class StoreInviteRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email', 'max:255'],
-            'role' => ['sometimes', Rule::in(['employee', 'admin'])],
+            'role' => ['sometimes', Rule::in($this->user()?->role === 'admin' ? ['employee', 'admin'] : ['employee'])],
         ];
     }
 

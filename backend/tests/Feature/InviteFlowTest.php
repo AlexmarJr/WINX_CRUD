@@ -19,7 +19,7 @@ class InviteFlowTest extends TestCase
     {
         Mail::fake();
         $tenancy = $this->tenancy();
-        $owner = User::factory()->create(['tenancy_id' => $tenancy->id]);
+        $owner = User::factory()->create(['tenancy_id' => $tenancy->id, 'role' => 'admin']);
 
         $this->actingAs($owner)
             ->postJson('/api/v1/invites', ['email' => '  New@Example.test  ', 'role' => 'admin'])
@@ -39,6 +39,29 @@ class InviteFlowTest extends TestCase
                 && $mail->hasTo($invite->email)
                 && str_contains($mail->render(), $invite->invite_url);
         });
+    }
+
+    public function test_employee_can_invite_only_employees(): void
+    {
+        Mail::fake();
+        $tenancy = $this->tenancy();
+        $employee = User::factory()->create(['tenancy_id' => $tenancy->id, 'role' => 'employee']);
+
+        $this->actingAs($employee)
+            ->postJson('/api/v1/invites', ['email' => 'admin@example.test', 'role' => 'admin'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('role');
+
+        $this->assertDatabaseCount('invites', 0);
+        Mail::assertNothingQueued();
+
+        $this->postJson('/api/v1/invites', ['email' => 'colleague@example.test', 'role' => 'employee'])
+            ->assertCreated()
+            ->assertJsonPath('data.role', 'employee');
+
+        $this->postJson('/api/v1/invites', ['email' => 'another@example.test'])
+            ->assertCreated()
+            ->assertJsonPath('data.role', 'employee');
     }
 
     public function test_existing_account_and_pending_invite_are_rejected(): void

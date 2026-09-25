@@ -3,17 +3,15 @@
 namespace App\Repositories;
 
 use App\Models\Product;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
 class AiProductRepository
 {
     /** @return Collection<int, Product> */
-    public function forUser(User $actor): Collection
+    public function forTenancy(string $tenancyId): Collection
     {
         return Product::query()
-            ->where('tenancy_id', $actor->tenancy_id)
-            ->where('user_id', $actor->id)
+            ->where('tenancy_id', $tenancyId)
             ->orderBy('name')
             ->get(['name', 'cost', 'price', 'stock']);
     }

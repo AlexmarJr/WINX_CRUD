@@ -180,7 +180,7 @@ async function logout(): Promise<void> {
     <InventoryModal :open="inviteOpen" title="Convidar usuário" eyebrow="Equipe" @close="inviteOpen = false">
       <form v-if="!sentInvite" id="invite-user-form" class="inventory-form" @submit.prevent="sendInvite">
         <label>E-mail <input v-model.trim="inviteForm.email" type="email" autocomplete="email" placeholder="nome@empresa.com" required></label>
-        <label>Papel <select v-model="inviteForm.role" required><option value="employee">Funcionário</option><option value="admin">Admin</option></select></label>
+        <label>Papel <select v-model="inviteForm.role" required><option value="employee">Funcionário</option><option v-if="auth.user?.role === 'admin'" value="admin">Admin</option></select></label>
         <p v-if="inviteError" class="form-alert" role="alert">{{ inviteError }}</p>
       </form>
       <div v-else class="invite-success">

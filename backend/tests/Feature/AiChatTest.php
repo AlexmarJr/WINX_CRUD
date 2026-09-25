@@ -41,7 +41,7 @@ class AiChatTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_chat_uses_only_the_actor_products_and_calculates_current_stock_totals(): void
+    public function test_chat_uses_tenancy_products_and_calculates_current_stock_totals(): void
     {
         $user = $this->makeUser();
         $other = User::factory()->create(['tenancy_id' => $user->tenancy_id]);
@@ -54,7 +54,7 @@ class AiChatTest extends TestCase
         $deleted->delete();
 
         Http::fake(['openrouter.ai/*' => Http::response([
-            'choices' => [['message' => ['content' => 'Seu estoque vale R$ 90,00 pelo custo.']]],
+            'choices' => [['message' => ['content' => 'Seu estoque vale R$ 92,00 pelo custo.']]],
         ])]);
 
         $history = array_map(
@@ -68,7 +68,7 @@ class AiChatTest extends TestCase
             'user_id' => $foreign->id,
         ])->assertOk()
             ->assertJsonPath('message', 'OK')
-            ->assertJsonPath('data.reply', 'Seu estoque vale R$ 90,00 pelo custo.')
+            ->assertJsonPath('data.reply', 'Seu estoque vale R$ 92,00 pelo custo.')
             ->assertJsonCount(16, 'data.history')
             ->assertJsonPath('data.history.14.text', 'Resuma meu estoque')
             ->assertJsonPath('data.history.15.role', 'assistant');
@@ -85,12 +85,12 @@ class AiChatTest extends TestCase
             $this->assertSame('Mensagem 2', $data['messages'][1]['content']);
             $this->assertSame('assistant', $data['messages'][2]['role']);
             $this->assertSame('Resuma meu estoque', $data['messages'][13]['content']);
-            $this->assertStringContainsString('Total de produtos: 2', $prompt);
-            $this->assertStringContainsString('Valor total do estoque pelo custo: R$ 90,00', $prompt);
-            $this->assertStringContainsString('Valor potencial de venda: R$ 145,00', $prompt);
-            $this->assertStringContainsString('Lucro potencial bruto: R$ 55,00', $prompt);
+            $this->assertStringContainsString('Total de produtos: 3', $prompt);
+            $this->assertStringContainsString('Valor total do estoque pelo custo: R$ 92,00', $prompt);
+            $this->assertStringContainsString('Valor potencial de venda: R$ 2.143,00', $prompt);
+            $this->assertStringContainsString('Lucro potencial bruto: R$ 2.051,00', $prompt);
             $this->assertStringContainsString('Mouse | venda: R$ 15,00 | custo: R$ 10,00 | estoque: 5', $prompt);
-            $this->assertStringNotContainsString('Produto de colega', $prompt);
+            $this->assertStringContainsString('Produto de colega | venda: R$ 999,00 | custo: R$ 1,00 | estoque: 2', $prompt);
             $this->assertStringNotContainsString('Produto de outra empresa', $prompt);
             $this->assertStringNotContainsString('Produto excluído', $prompt);
 

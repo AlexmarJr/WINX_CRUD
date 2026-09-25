@@ -65,6 +65,21 @@ As rotas estão em `/api/v1`. A autenticação usa sessão e cookies do Laravel 
 
 Cada consulta e alteração do catálogo é restrita à empresa do usuário autenticado. Produtos e categorias usam exclusão lógica. As validações de criação e edição usam Form Requests; os retornos do catálogo usam API Resources.
 
+## O que ampliamos em relação ao desafio técnico
+
+O enunciado concentra-se em uma API de produtos com login, CRUD, listagem paginada com busca e filtros, detalhe e logs assíncronos. Mantivemos esse núcleo e acrescentamos:
+
+| Tema | Ampliação feita no Winx |
+| --- | --- |
+| Empresas | O cadastro cria uma empresa (`tenancy`) e seu administrador. Produtos, categorias e usuários ficam vinculados à empresa, com consultas e alterações restritas a esse contexto. |
+| Categorias | A categoria sugerida como dado e filtro do produto virou uma entidade com CRUD e status próprio. Produtos também têm custo de compra, status e exclusão lógica. |
+| Contas e permissões | Além do login, há cadastro, convite por email e link com validade, perfis de administrador e funcionário, gestão de usuários, desativação de conta, edição do perfil e recuperação de senha. |
+| Interface | Foi criado um frontend em Nuxt e Pinia para cadastro, catálogo, usuários e perfil. O dashboard mostra totais do estoque e produtos com baixa quantidade. |
+| Assistente de IA | Um chat conectado ao OpenRouter responde perguntas sobre produtos, estoque, custos e potencial de venda usando os dados acessíveis ao usuário. |
+| Dados e ambiente | Cada nova empresa recebe cinco categorias e 50 produtos iniciais; há também um seeder de demonstração. O Docker Compose reúne frontend, API, PostgreSQL, Elasticsearch e worker de filas. |
+
+Os logs exigidos pelo enunciado são para produtos; os observers do Winx também registram alterações de categorias. Elasticsearch e testes automatizados com PHPUnit aparecem no enunciado como diferenciais desejáveis e também foram implementados aqui.
+
 ## Logs assíncronos e busca
 
 Observers acompanham criação, atualização e exclusão de produtos e categorias. O Job `RecordInventoryLog` grava usuário, empresa, entidade e os campos alterados em `meta.old` e `meta.new`. O worker processa as filas `emails`, `search` e `default`.

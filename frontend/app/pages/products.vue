@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { InventoryProduct } from '~/stores/inventory'
-import { apiErrorMessage } from '~/utils/api'
+import { apiErrorMessage, apiGet } from '~/utils/api'
+import { confirmDanger, showActionError, showSuccessToast } from '~/utils/confirmAction'
 
 useHead({ title: 'Produtos · Winx' })
 
@@ -8,12 +9,17 @@ const FIRST_PAGE = 1
 const inventory = useInventoryStore()
 const auth = useAuthStore()
 const search = ref('')
+const suggestions = ref<string[]>([])
 const categoryFilter = ref('')
+const availabilityFilter = ref('')
+const productsPerPage = ref(20)
+const tableWrap = ref<HTMLElement | null>(null)
+const resettingProducts = ref(false)
+let listGeneration = 0
 const priceCeilingCents = ref(0)
 const minPriceCents = ref(0)
 const maxPriceCents = ref(0)
 const priceRangeError = ref('')
-const page = ref(FIRST_PAGE)
 type ProductSort = 'name' | 'category' | 'price' | 'stock' | 'status'
 const sortBy = ref<ProductSort | null>(null)
 const sortDir = ref<'asc' | 'desc'>('asc')
@@ -21,7 +27,6 @@ const selectedProduct = ref<InventoryProduct | null>(null)
 const editingProduct = ref(false)
 const updatingProduct = ref(false)
 const editError = ref('')
-const productToDelete = ref<InventoryProduct | null>(null)
 const creating = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
@@ -31,18 +36,49 @@ const form = reactive({ name: '', category_id: '', description: '', cost: '', pr
 const editForm = reactive({ name: '', category_id: '', description: '', cost: '', price: '', stock: '0', status: 'active' as 'active' | 'inactive', image: '' })
 
 let filterTimer: ReturnType<typeof setTimeout> | undefined
+let suggestionTimer: ReturnType<typeof setTimeout> | undefined
+let suggestionsController: AbortController | undefined
 
-function loadPage(nextPage: number): void {
-  page.value = nextPage
+async function loadPage(nextPage: number, generation: number): Promise<void> {
   const minPrice = minPriceCents.value > 0 ? (minPriceCents.value / 100).toFixed(2) : ''
   const maxPrice = maxPriceCents.value < priceCeilingCents.value ? (maxPriceCents.value / 100).toFixed(2) : ''
-  void inventory.loadProducts(page.value, search.value.trim(), categoryFilter.value, minPrice, maxPrice, sortBy.value ?? '', sortDir.value)
+  await inventory.loadProducts(nextPage, search.value.trim(), categoryFilter.value, minPrice, maxPrice, sortBy.value ?? '', sortDir.value, availabilityFilter.value, productsPerPage.value)
+  if (generation !== listGeneration) return
+
+  if (nextPage === FIRST_PAGE) resettingProducts.value = false
+  await nextTick()
+  if (generation === listGeneration) maybeLoadMore()
 }
 
-function refreshProducts(nextPage: number): void {
+function resetProducts(): void {
   clearTimeout(filterTimer)
-  loadPage(nextPage)
+  listGeneration += 1
+  resettingProducts.value = true
+  if (tableWrap.value) tableWrap.value.scrollTop = 0
+  void loadPage(FIRST_PAGE, listGeneration)
+}
+
+function maybeLoadMore(): void {
+  const container = tableWrap.value
+  if (!container || resettingProducts.value || inventory.productsLoading || inventory.productsError) return
+  if (inventory.productsPagination.currentPage >= inventory.productsPagination.lastPage) return
+  if (container.scrollHeight - container.scrollTop - container.clientHeight > 120) return
+  void loadPage(inventory.productsPagination.currentPage + 1, listGeneration)
+}
+
+function refreshProducts(): void {
+  resetProducts()
   void loadPriceRange()
+}
+
+function retryProducts(): void {
+  if (inventory.productsLoading || resettingProducts.value) return
+  if (!inventory.products.length) {
+    resetProducts()
+    return
+  }
+  inventory.productsError = ''
+  void loadPage(inventory.productsPagination.currentPage + 1, listGeneration)
 }
 
 async function loadPriceRange(): Promise<void> {
@@ -60,7 +96,7 @@ async function loadPriceRange(): Promise<void> {
 
 watch(() => auth.user?.id, (id) => {
   if (!id || !import.meta.client) return
-  loadPage(FIRST_PAGE)
+  resetProducts()
   void loadPriceRange()
   void inventory.loadCategoryOptions().catch((error: unknown) => {
     optionsError.value = apiErrorMessage(error, 'Não foi possível carregar as categorias.')
@@ -73,26 +109,46 @@ watch(() => auth.user?.id, (id) => {
 watch([search, minPriceCents, maxPriceCents], () => {
   if (!auth.user || !import.meta.client) return
   clearTimeout(filterTimer)
+  listGeneration += 1
+  resettingProducts.value = true
   inventory.cancelProductsRequest()
-  filterTimer = setTimeout(() => loadPage(FIRST_PAGE), 500)
+  filterTimer = setTimeout(resetProducts, 500)
 }, { flush: 'sync' })
 
-watch(categoryFilter, () => {
+watch(search, (value) => {
+  clearTimeout(suggestionTimer)
+  suggestionsController?.abort()
+  suggestions.value = []
+  if (!auth.user || !import.meta.client || value.trim().length < 2) return
+
+  suggestionTimer = setTimeout(async () => {
+    const controller = new AbortController()
+    suggestionsController = controller
+    try {
+      const response = await apiGet<{ data: string[] }>('/api/v1/products/suggestions', { q: value.trim() }, controller.signal)
+      if (!controller.signal.aborted && search.value.trim() === value.trim()) suggestions.value = response.data
+    } catch {
+      if (!controller.signal.aborted) suggestions.value = []
+    }
+  }, 300)
+})
+
+watch([categoryFilter, availabilityFilter, productsPerPage], () => {
   if (!auth.user || !import.meta.client) return
-  clearTimeout(filterTimer)
-  loadPage(FIRST_PAGE)
+  resetProducts()
 })
 
 onUnmounted(() => {
   clearTimeout(filterTimer)
+  clearTimeout(suggestionTimer)
+  suggestionsController?.abort()
   inventory.cancelProductsRequest()
 })
 
 function toggleSort(field: ProductSort): void {
   sortDir.value = sortBy.value === field && sortDir.value === 'asc' ? 'desc' : 'asc'
   sortBy.value = field
-  clearTimeout(filterTimer)
-  loadPage(FIRST_PAGE)
+  resetProducts()
 }
 
 function sortIcon(field: ProductSort): 'sort' | 'sortUp' | 'sortDown' {
@@ -199,7 +255,7 @@ async function saveProductUpdate(): Promise<void> {
       selectedProduct.value = updated
       editingProduct.value = false
     }
-    refreshProducts(FIRST_PAGE)
+    refreshProducts()
   } catch (error) {
     editError.value = apiErrorMessage(error, 'Não foi possível atualizar o produto.')
   } finally {
@@ -220,7 +276,7 @@ async function saveProduct(): Promise<void> {
   try {
     await inventory.createProduct(productInput(form))
     creating.value = false
-    refreshProducts(FIRST_PAGE)
+    refreshProducts()
   } catch (error) {
     actionError.value = apiErrorMessage(error, 'Não foi possível criar o produto.')
   } finally {
@@ -228,17 +284,23 @@ async function saveProduct(): Promise<void> {
   }
 }
 
-async function deleteProduct(): Promise<void> {
-  if (!productToDelete.value) return
+async function deleteProduct(product: InventoryProduct): Promise<void> {
+  if (deleting.value) return
   deleting.value = true
-  actionError.value = ''
 
   try {
-    await inventory.deleteProduct(productToDelete.value.id)
-    productToDelete.value = null
-    refreshProducts(page.value > FIRST_PAGE && inventory.products.length === 1 ? page.value - 1 : page.value)
+    const confirmed = await confirmDanger({
+      title: 'Excluir produto?',
+      text: `${product.name} será excluído.`,
+      confirmText: 'Excluir produto'
+    })
+    if (!confirmed) return
+
+    await inventory.deleteProduct(product.id)
+    refreshProducts()
+    void showSuccessToast('Produto excluído com sucesso.')
   } catch (error) {
-    actionError.value = apiErrorMessage(error, 'Não foi possível excluir o produto.')
+    await showActionError('Não foi possível excluir o produto', apiErrorMessage(error, 'Tente novamente.'))
   } finally {
     deleting.value = false
   }
@@ -261,13 +323,22 @@ async function deleteProduct(): Promise<void> {
         <div class="inventory-toolbar inventory-toolbar-products">
           <label class="inventory-search">
             <span>Buscar produto</span>
-            <input v-model.trim="search" type="search" placeholder="Nome do produto">
+            <input v-model.trim="search" type="search" list="product-suggestions" placeholder="Nome, descrição ou categoria" autocomplete="off">
+            <datalist id="product-suggestions"><option v-for="suggestion in suggestions" :key="suggestion" :value="suggestion" /></datalist>
           </label>
           <label class="inventory-filter inventory-category-filter">
             <span>Categoria</span>
             <select v-model="categoryFilter">
               <option value="">Todas as categorias</option>
               <option v-for="category in inventory.categoryOptions" :key="category.id" :value="category.id">{{ category.name }}</option>
+            </select>
+          </label>
+          <label class="inventory-filter inventory-availability-filter">
+            <span>Disponibilidade</span>
+            <select v-model="availabilityFilter">
+              <option value="">Todos os estoques</option>
+              <option value="in_stock">Em estoque</option>
+              <option value="out_of_stock">Sem estoque</option>
             </select>
           </label>
           <div class="inventory-price-range" role="group" aria-label="Faixa de preço">
@@ -282,7 +353,7 @@ async function deleteProduct(): Promise<void> {
 
         <div v-if="inventory.productsError || optionsError || priceRangeError" class="inventory-error" role="alert">{{ inventory.productsError || optionsError || priceRangeError }}</div>
 
-        <div class="inventory-table-wrap">
+        <div ref="tableWrap" class="inventory-table-wrap" @scroll.passive="maybeLoadMore">
           <table class="inventory-table products-table">
             <thead><tr>
               <th class="inventory-sort-header" :aria-sort="ariaSort('name')"><button class="inventory-sort-button" type="button" @click="toggleSort('name')">Produto <AppIcon :name="sortIcon('name')" aria-hidden="true" /></button></th>
@@ -299,14 +370,25 @@ async function deleteProduct(): Promise<void> {
                 <td>{{ currency.format(Number(product.price)) }}</td>
                 <td><span class="inventory-stock" :class="{ 'inventory-stock-low': product.stock <= 5 }">{{ product.stock }} un.</span></td>
                 <td><span class="inventory-status" :class="{ 'inventory-status-inactive': product.status === 'inactive' }">{{ product.status === 'active' ? 'Ativo' : 'Inativo' }}</span></td>
-                <td class="inventory-actions-cell"><div class="inventory-row-actions"><button type="button" @click="openProductDetails(product)"><AppIcon name="eye" aria-hidden="true" /> Abrir</button><button class="inventory-delete" type="button" :aria-label="`Excluir ${product.name}`" @click="productToDelete = product"><AppIcon name="trash" aria-hidden="true" /> Excluir</button></div></td>
+                <td class="inventory-actions-cell"><div class="inventory-row-actions"><button type="button" @click="openProductDetails(product)"><AppIcon name="eye" aria-hidden="true" /> Abrir</button><button class="inventory-delete" type="button" :aria-label="`Excluir ${product.name}`" :disabled="deleting" @click="deleteProduct(product)"><AppIcon name="trash" aria-hidden="true" /> Excluir</button></div></td>
               </tr>
               <tr v-if="inventory.productsLoading"><td colspan="6" class="inventory-empty">Carregando produtos...</td></tr>
               <tr v-else-if="!inventory.products.length"><td colspan="6" class="inventory-empty">Nenhum produto encontrado.</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="inventory-panel-footer"><span>{{ inventory.productsPagination.total }} produto(s)</span><div class="inventory-pagination"><button type="button" :disabled="page <= FIRST_PAGE || inventory.productsLoading" @click="loadPage(page - 1)">Anterior</button><span>{{ page }} / {{ inventory.productsPagination.lastPage }}</span><button type="button" :disabled="page >= inventory.productsPagination.lastPage || inventory.productsLoading" @click="loadPage(page + 1)">Próxima</button></div></div>
+        <div class="inventory-panel-footer">
+          <span>Mostrando {{ inventory.products.length }} de {{ inventory.productsPagination.total }} produto(s)</span>
+          <button v-if="inventory.productsError" class="inventory-load-retry" type="button" @click="retryProducts">Tentar novamente</button>
+          <label class="inventory-per-page">Produtos por vez
+            <select v-model.number="productsPerPage" aria-label="Produtos carregados por vez">
+              <option :value="10">10</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+            </select>
+          </label>
+        </div>
       </section>
     </div>
 
@@ -350,10 +432,5 @@ async function deleteProduct(): Promise<void> {
       <template #footer><button class="button button-outline" type="button" @click="creating = false">Cancelar</button><button class="button button-navy" type="submit" form="create-product-form" :disabled="saving">{{ saving ? 'Salvando...' : 'Adicionar produto' }}</button></template>
     </InventoryModal>
 
-    <InventoryModal :open="Boolean(productToDelete)" title="Excluir produto?" eyebrow="Confirmação" @close="productToDelete = null">
-      <p class="inventory-confirmation">{{ productToDelete?.name }} será excluído.</p>
-      <p v-if="actionError" class="inventory-error" role="alert">{{ actionError }}</p>
-      <template #footer><button class="button button-outline" type="button" @click="productToDelete = null">Cancelar</button><button class="button button-danger" type="button" :disabled="deleting" @click="deleteProduct">{{ deleting ? 'Excluindo...' : 'Excluir produto' }}</button></template>
-    </InventoryModal>
   </DashboardShell>
 </template>

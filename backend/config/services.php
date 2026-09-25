@@ -14,6 +14,11 @@ return [
     |
     */
 
+    'openrouter' => [
+        'key' => env('OPENROUTER_KEY'),
+        'model' => env('OPENROUTER_MODEL', 'openai/gpt-6-luna'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

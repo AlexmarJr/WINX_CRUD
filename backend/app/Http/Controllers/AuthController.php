@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenancy;
 use App\Models\User;
+use App\Services\StarterInventoryService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(private StarterInventoryService $starterInventoryService) {}
+
     public function register(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -37,6 +40,8 @@ class AuthController extends Controller
             $user->password = $data['password'];
             $user->role = 'admin';
             $user->save();
+
+            $this->starterInventoryService->createFor($tenancy, $user);
 
             return $user;
         });

@@ -3,7 +3,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
   modules: ['@pinia/nuxt'],
-  css: ['~/assets/css/main.css'],
+  css: ['sweetalert2/dist/sweetalert2.min.css', '~/assets/css/main.css'],
   vite: {
     server: {
       watch: { usePolling: true, interval: 300 }

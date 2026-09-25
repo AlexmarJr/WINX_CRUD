@@ -6,6 +6,9 @@ services:
       - ./backend:/var/www/html
     ports:
       - "8000:8000"
+    environment:
+      SEARCH_DRIVER: elasticsearch
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     command: >
       sh -c 'set -e;
       test -f .env || cp .env.example .env;
@@ -16,13 +19,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
 
   queue:
     build: ./backend
     working_dir: /var/www/html
     volumes:
       - ./backend:/var/www/html
-    command: php artisan queue:work database --queue=emails,default --sleep=1 --tries=3
+    environment:
+      SEARCH_DRIVER: elasticsearch
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    command: php artisan queue:work database --queue=emails,search,default --sleep=1 --tries=3
     restart: unless-stopped
     depends_on:
       backend:
@@ -37,6 +45,23 @@ services:
     ports:
       - "3000:3000"
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.4
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.ml.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    mem_limit: 1g
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   postgres:
     image: postgres:17-alpine
@@ -57,3 +82,4 @@ services:
 volumes:
   frontend_node_modules:
   postgres_data:
+  elasticsearch_data:

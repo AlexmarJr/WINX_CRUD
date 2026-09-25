@@ -7,6 +7,7 @@ useHead({ title: 'Categorias · Winx' })
 const inventory = useInventoryStore()
 const auth = useAuthStore()
 const search = ref('')
+const statusFilter = ref<'active' | 'inactive' | ''>('active')
 const page = ref(1)
 type CategorySort = 'name' | 'description' | 'products_count' | 'status'
 const sortBy = ref<CategorySort | null>(null)
@@ -25,7 +26,7 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 function loadPage(nextPage: number): void {
   page.value = nextPage
-  void inventory.loadCategories(page.value, search.value.trim(), sortBy.value ?? '', sortDir.value)
+  void inventory.loadCategories(page.value, search.value.trim(), sortBy.value ?? '', sortDir.value, statusFilter.value)
 }
 
 watch(() => auth.user?.id, (id) => {
@@ -38,6 +39,12 @@ watch(search, () => {
   inventory.cancelCategoriesRequest()
   searchTimer = setTimeout(() => loadPage(1), 500)
 }, { flush: 'sync' })
+
+watch(statusFilter, () => {
+  if (!auth.user || !import.meta.client) return
+  clearTimeout(searchTimer)
+  loadPage(1)
+})
 
 onUnmounted(() => {
   clearTimeout(searchTimer)
@@ -157,13 +164,21 @@ async function saveCategory(): Promise<void> {
       </div>
 
       <section class="inventory-panel" aria-label="Lista de categorias">
-        <div class="inventory-toolbar">
+        <div class="inventory-toolbar inventory-toolbar-categories">
           <label class="inventory-search"><span>Buscar categoria</span><input v-model.trim="search" type="search" placeholder="Nome da categoria"></label>
-          <span class="inventory-toolbar-count">{{ inventory.categoriesPagination.total }} categorias no catálogo</span>
+          <label class="inventory-filter">
+            <span>Status</span>
+            <select v-model="statusFilter">
+              <option value="active">Ativas</option>
+              <option value="inactive">Inativas</option>
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <span class="inventory-toolbar-count">{{ inventory.categoriesPagination.total }} {{ inventory.categoriesPagination.total === 1 ? 'categoria encontrada' : 'categorias encontradas' }}</span>
         </div>
         <div v-if="inventory.categoriesError" class="inventory-error" role="alert">{{ inventory.categoriesError }}</div>
         <div class="inventory-table-wrap">
-          <table class="inventory-table">
+          <table class="inventory-table categories-table">
             <thead><tr>
               <th class="inventory-sort-header" :aria-sort="ariaSort('name')"><button class="inventory-sort-button" type="button" @click="toggleSort('name')">Categoria <AppIcon :name="sortIcon('name')" aria-hidden="true" /></button></th>
               <th class="inventory-sort-header" :aria-sort="ariaSort('description')"><button class="inventory-sort-button" type="button" @click="toggleSort('description')">Descrição <AppIcon :name="sortIcon('description')" aria-hidden="true" /></button></th>

@@ -114,7 +114,7 @@ export const useInventoryStore = defineStore('inventory', {
       this.productsLoading = false
     },
 
-    async loadCategories(page = 1, search = '', sortBy = '', sortDir: 'asc' | 'desc' = 'asc'): Promise<void> {
+    async loadCategories(page = 1, search = '', sortBy = '', sortDir: 'asc' | 'desc' = 'asc', status = ''): Promise<void> {
       this.cancelCategoriesRequest()
       const request = categoriesRequest
       const controller = new AbortController()
@@ -127,6 +127,7 @@ export const useInventoryStore = defineStore('inventory', {
           page,
           per_page: 20,
           ...(search ? { search } : {}),
+          ...(status ? { status } : {}),
           ...(sortBy ? { sort_by: sortBy, sort_dir: sortDir } : {})
         }, controller.signal)
         if (request !== categoriesRequest) return
@@ -182,7 +183,7 @@ export const useInventoryStore = defineStore('inventory', {
       if (request === activeCategoryOptionsRequest) this.activeCategoryOptions = categories
     },
 
-    async loadProducts(page = 1, search = '', categoryId = '', minPrice = '', maxPrice = '', sortBy = '', sortDir: 'asc' | 'desc' = 'asc'): Promise<void> {
+    async loadProducts(page: number, search: string, categoryId: string, minPrice: string, maxPrice: string, sortBy: string, sortDir: 'asc' | 'desc', availability: string, perPage: number): Promise<void> {
       this.cancelProductsRequest()
       const request = productsRequest
       const controller = new AbortController()
@@ -193,15 +194,19 @@ export const useInventoryStore = defineStore('inventory', {
       try {
         const response = await apiGet<PageResponse<InventoryProduct>>('/api/v1/products', {
           page,
-          per_page: 20,
+          per_page: perPage,
           ...(search ? { search } : {}),
           ...(categoryId ? { category_id: categoryId } : {}),
+          ...(availability ? { availability } : {}),
           ...(minPrice ? { min_price: minPrice } : {}),
           ...(maxPrice ? { max_price: maxPrice } : {}),
           ...(sortBy ? { sort_by: sortBy, sort_dir: sortDir } : {})
         }, controller.signal)
         if (request !== productsRequest) return
-        this.products = response.data
+        const existing = page > 1 ? new Set(this.products.map(product => product.id)) : new Set<string>()
+        this.products = page > 1
+          ? [...this.products, ...response.data.filter(product => !existing.has(product.id))]
+          : response.data
         this.productsPagination = {
           currentPage: response.meta.current_page,
           lastPage: response.meta.last_page,
@@ -209,7 +214,10 @@ export const useInventoryStore = defineStore('inventory', {
         }
       } catch (error) {
         if (request !== productsRequest || controller.signal.aborted) return
-        this.products = []
+        if (page === 1) {
+          this.products = []
+          this.productsPagination = emptyPagination()
+        }
         this.productsError = apiErrorMessage(error, 'Não foi possível carregar os produtos.')
       } finally {
         if (request === productsRequest) {

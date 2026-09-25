@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
@@ -20,10 +21,12 @@ Route::prefix('v1')->group(function (): void {
         });
 
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/ai-chat', AiChatController::class)->middleware('throttle:10,1');
         Route::post('/invites', [InviteController::class, 'store'])->middleware('throttle:10,1');
         Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
         Route::apiResource('categories', CategoryController::class);
         Route::get('/products/max-price', [ProductController::class, 'maxPrice']);
+        Route::get('/products/suggestions', [ProductController::class, 'suggestions']);
         Route::apiResource('products', ProductController::class);
     });
 });

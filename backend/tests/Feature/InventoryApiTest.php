@@ -232,6 +232,46 @@ class InventoryApiTest extends TestCase
             ->assertJsonValidationErrors('max_price');
     }
 
+    public function test_product_availability_filter_and_page_size(): void
+    {
+        $user = $this->makeUser('Empresa A');
+        $category = Category::query()->create([
+            'tenancy_id' => $user->tenancy_id,
+            'user_id' => $user->id,
+            'name' => 'Periféricos',
+            'status' => 'active',
+        ]);
+
+        foreach ([['Esgotado', 0], ['Disponível A', 2], ['Disponível B', 5]] as [$name, $stock]) {
+            Product::query()->create([
+                'tenancy_id' => $user->tenancy_id,
+                'user_id' => $user->id,
+                'category_id' => $category->id,
+                'name' => $name,
+                'price' => '20.00',
+                'stock' => $stock,
+                'status' => 'active',
+            ]);
+        }
+
+        $this->actingAs($user);
+
+        $this->getJson('/api/v1/products?availability=in_stock&per_page=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.last_page', 2);
+
+        $this->getJson('/api/v1/products?availability=out_of_stock')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.name', 'Esgotado');
+
+        $this->getJson('/api/v1/products?availability=invalid')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('availability');
+    }
+
     public function test_product_max_price_uses_only_non_deleted_products_from_the_authenticated_tenancy(): void
     {
         $user = $this->makeUser('Empresa A');

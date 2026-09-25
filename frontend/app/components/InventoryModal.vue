@@ -15,7 +15,7 @@ watch(() => props.open, async (open) => {
   <dialog ref="dialog" class="inventory-dialog" :aria-label="title" @close="emit('close')">
     <div class="inventory-dialog-content">
       <header class="inventory-dialog-header">
-        <div>
+        <div class="inventory-dialog-heading">
           <span v-if="eyebrow" class="overview-card-kicker">{{ eyebrow }}</span>
           <h2>{{ title }}</h2>
         </div>

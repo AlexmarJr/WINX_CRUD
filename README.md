@@ -23,14 +23,28 @@ O Compose instala dependências, cria `backend/.env` e a chave da aplicação qu
 - Login: http://localhost:3000/login
 - Área autenticada: http://localhost:3000/dashboard
 
-O Nuxt usa sessões com cookies do Laravel Sanctum. O cadastro cria um usuário no PostgreSQL, faz login automaticamente e abre a área autenticada. O login aceita a opção de manter a sessão ativa. A API é versionada em `/api/v1` e oferece `POST /api/v1/register`, `POST /api/v1/login`, `POST /api/v1/logout` e `GET /api/v1/user`.
+O Nuxt usa sessões com cookies do Laravel Sanctum. O cadastro cria a empresa e o usuário no PostgreSQL, adiciona 5 categorias e 50 produtos iniciais para essa empresa, faz login automaticamente e abre a área autenticada. O login aceita a opção de manter a sessão ativa. A API é versionada em `/api/v1` e oferece `POST /api/v1/register`, `POST /api/v1/login`, `POST /api/v1/logout` e `GET /api/v1/user`.
 
-As rotas autenticadas incluem o CRUD REST de `/api/v1/products` e `/api/v1/categories`. A listagem de produtos aceita `search`, `category_id`, `status`, `min_price`, `max_price`, `per_page`, `sort_by` e `sort_dir`. Os limites de preço são inclusivos, em reais; `max_price` deve ser maior ou igual a `min_price` quando ambos forem enviados.
+As rotas autenticadas incluem o CRUD REST de `/api/v1/products` e `/api/v1/categories`. A listagem de produtos aceita `search`, `category_id`, `status`, `availability` (`in_stock` ou `out_of_stock`), `min_price`, `max_price`, `per_page`, `sort_by` e `sort_dir`. Os limites de preço são inclusivos, em reais; `max_price` deve ser maior ou igual a `min_price` quando ambos forem enviados.
 
-Para executar os testes de autenticação:
+## Busca de produtos
+
+O Compose inicia um Elasticsearch 9.5.4 de nó único, acessível apenas pela rede interna dos containers. A busca com `search` em `GET /api/v1/products` usa nome, descrição e categoria, ordena por relevância quando não há ordenação explícita e respeita empresa, categoria, status e faixa de preço. `GET /api/v1/products/suggestions?q=mo` retorna até cinco sugestões de nomes da empresa autenticada. Sem `search`, a listagem continua usando PostgreSQL.
+
+Após subir o ambiente pela primeira vez, indexe os produtos que já existem no banco:
 
 ```sh
-docker compose exec backend php artisan test --compact tests/Feature/AuthFlowTest.php
+docker compose exec backend php artisan products:reindex
 ```
 
-Os logs assíncronos de alterações de produtos e o Elasticsearch ainda não foram implementados.
+O comando reconstrói o índice a partir do PostgreSQL. Novas criações, atualizações e exclusões entram na fila `search` automaticamente. A fila `default` grava os logs de alterações; o serviço `queue` processa ambas. A busca pode levar alguns segundos para refletir uma alteração.
+
+Para usar o backend sem Elasticsearch, defina `SEARCH_DRIVER=database` e rode Laravel fora do Compose, ou ajuste essa variável nos serviços `backend` e `queue` do Compose.
+
+## Testes
+
+```sh
+docker compose exec backend php artisan test --compact
+```
+
+Elasticsearch é uma instância local de desenvolvimento; a configuração do Compose não expõe sua porta nem ativa autenticação. Para produção, configure um cluster protegido e `ELASTICSEARCH_URL`/`ELASTICSEARCH_API_KEY`.

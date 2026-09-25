@@ -166,6 +166,8 @@ async function logout(): Promise<void> {
       </main>
     </div>
 
+    <AiChat />
+
     <InventoryModal :open="inviteOpen" title="Convidar usuário" eyebrow="Equipe" @close="inviteOpen = false">
       <form v-if="!sentInvite" id="invite-user-form" class="inventory-form" @submit.prevent="sendInvite">
         <label>E-mail <input v-model.trim="inviteForm.email" type="email" autocomplete="email" placeholder="nome@empresa.com" required></label>

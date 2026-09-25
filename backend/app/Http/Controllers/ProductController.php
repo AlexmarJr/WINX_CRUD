@@ -22,15 +22,24 @@ class ProductController extends Controller
         return response()->json(['data' => ['max_price' => $this->productService->maxPrice($request->user())]]);
     }
 
+    public function suggestions(Request $request): JsonResponse
+    {
+        $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
+
+        return response()->json(['data' => $this->productService->suggestions($request->user(), $data['q'])]);
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
             'search' => ['sometimes', 'string', 'max:255'],
             'status' => ['sometimes', Rule::enum(ProductStatus::class)],
             'category_id' => ['sometimes', 'uuid'],
+            'availability' => ['sometimes', Rule::in(['in_stock', 'out_of_stock'])],
             'min_price' => ['sometimes', 'numeric', 'between:0,99999999.99'],
             'max_price' => ['sometimes', 'numeric', 'between:0,99999999.99', ...($request->has('min_price') ? ['gte:min_price'] : [])],
             'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
             'sort_by' => ['sometimes', Rule::in(['name', 'category', 'price', 'stock', 'status'])],
             'sort_dir' => ['sometimes', Rule::in(['asc', 'desc'])],
         ]);

@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { apiGet, apiWrite } from '~/utils/api'
 import { useInventoryStore } from '~/stores/inventory'
+import { useUsersStore } from '~/stores/users'
 
 export interface AuthUser {
   id: string
   name: string
   email: string
+  role: string
+  status: 'active' | 'inactive'
 }
 
 interface LoginPayload {
@@ -51,9 +54,17 @@ export const useAuthStore = defineStore('auth', {
       this.initialized = true
       return this.user !== null
     },
+    async changeEmail(payload: { email: string, current_password: string }): Promise<void> {
+      const response = await apiWrite<{ data: AuthUser }>('/api/v1/profile/email', 'PATCH', payload)
+      this.user = response.data
+    },
+    async changePassword(payload: { current_password: string, password: string, password_confirmation: string }): Promise<void> {
+      await apiWrite<void>('/api/v1/profile/password', 'PATCH', payload)
+    },
     async logout(): Promise<void> {
       await apiWrite<void>('/api/v1/logout', 'POST')
       useInventoryStore().resetInventory()
+      useUsersStore().resetUsers()
       this.user = null
       this.initialized = true
     }

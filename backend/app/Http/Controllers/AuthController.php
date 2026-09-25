@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserStatus;
 use App\Models\Tenancy;
 use App\Models\User;
 use App\Services\StarterInventoryService;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -60,7 +62,18 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (! Auth::attempt([...$credentials, 'status' => UserStatus::Active->value], $request->boolean('remember'))) {
+            $inactiveUser = User::query()
+                ->where('email', $credentials['email'])
+                ->where('status', UserStatus::Inactive->value)
+                ->first();
+
+            if ($inactiveUser !== null && Hash::check($credentials['password'], $inactiveUser->password)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Sua conta foi desativada. Entre em contato com o administrador para mais informações.'],
+                ]);
+            }
+
             throw ValidationException::withMessages([
                 'email' => ['As credenciais informadas não conferem.'],
             ]);

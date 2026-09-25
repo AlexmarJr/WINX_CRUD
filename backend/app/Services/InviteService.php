@@ -72,18 +72,14 @@ class InviteService
 
     public function findValid(string $token): Invite
     {
-        $invite = $this->invitesRepository->findByTokenOrFail($token);
-        $this->assertValid($invite);
-
-        return $invite;
+        return $this->assertValid($this->invitesRepository->findByToken($token));
     }
 
     /** @param array{name: string, password: string} $data */
     public function accept(string $token, array $data): User
     {
         return DB::transaction(function () use ($token, $data): User {
-            $invite = $this->invitesRepository->findByTokenOrFail($token, lock: true);
-            $this->assertValid($invite);
+            $invite = $this->assertValid($this->invitesRepository->findByToken($token, lock: true));
 
             if ($this->invitesRepository->accountExists($invite->email)) {
                 throw ValidationException::withMessages([
@@ -105,12 +101,26 @@ class InviteService
         });
     }
 
-    private function assertValid(Invite $invite): void
+    private function assertValid(?Invite $invite): Invite
     {
-        if ($invite->status !== InviteStatus::Pending || ! $invite->expires_at->isFuture()) {
+        if ($invite === null) {
             throw ValidationException::withMessages([
-                'token' => ['Este convite não está mais válido.'],
+                'token' => ['Não encontramos este convite. Entre em contato com quem enviou o convite e peça um novo link.'],
             ]);
         }
+
+        if ($invite->status === InviteStatus::Accepted) {
+            throw ValidationException::withMessages([
+                'token' => ['Este convite já foi utilizado. Entre em contato com quem enviou o convite e peça um novo link.'],
+            ]);
+        }
+
+        if ($invite->status !== InviteStatus::Pending || ! $invite->expires_at->isFuture()) {
+            throw ValidationException::withMessages([
+                'token' => ['Este convite expirou. Entre em contato com quem enviou o convite e peça um novo link.'],
+            ]);
+        }
+
+        return $invite;
     }
 }

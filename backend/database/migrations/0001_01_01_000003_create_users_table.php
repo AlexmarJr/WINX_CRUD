@@ -15,8 +15,9 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('name');
             $table->string('email')->unique();
-            $table->uuid('tenancy_id')->nullable()->index(); //Indice aqui ja é pensando em escalabilidade pq eventualmente pode cresces, e nao tem pq nao por agora.
+            $table->uuid('tenancy_id')->nullable()->index(); // Indice aqui ja é pensando em escalabilidade pq eventualmente pode cresces, e nao tem pq nao por agora.
             $table->string('role')->default('user');
+            $table->string('status')->default('active');
             $table->string('password');
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('deleted_at')->nullable();
@@ -24,10 +25,9 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['tenancy_id', 'id']);
-        
+
             $table->foreign('tenancy_id')->references('id')->on('tenancies');
         });
-
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();
@@ -43,7 +43,7 @@ return new class extends Migration
             $table->longText('payload');
             $table->integer('last_activity')->index();
         });
-        
+
     }
 
     /**

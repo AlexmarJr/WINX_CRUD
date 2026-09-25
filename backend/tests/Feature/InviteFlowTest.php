@@ -66,6 +66,22 @@ class InviteFlowTest extends TestCase
         Mail::assertQueued(InvitationMail::class, 1);
     }
 
+    public function test_soft_deleted_account_cannot_be_invited_again(): void
+    {
+        Mail::fake();
+        $owner = User::factory()->create(['tenancy_id' => $this->tenancy()->id]);
+        $deleted = User::factory()->create(['email' => 'deleted@example.test']);
+        $deleted->delete();
+
+        $this->actingAs($owner)
+            ->postJson('/api/v1/invites', ['email' => 'deleted@example.test'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->assertDatabaseCount('invites', 0);
+        Mail::assertNothingOutgoing();
+    }
+
     public function test_guest_accepts_invite_and_cannot_reuse_it(): void
     {
         $tenancy = $this->tenancy();
@@ -99,7 +115,9 @@ class InviteFlowTest extends TestCase
             'name' => 'Outra Pessoa',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-        ])->assertUnprocessable()->assertJsonValidationErrors('token');
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('token')
+            ->assertJsonPath('errors.token.0', 'Este convite já foi utilizado. Entre em contato com quem enviou o convite e peça um novo link.');
         $this->assertDatabaseCount('users', 2);
     }
 
@@ -107,15 +125,32 @@ class InviteFlowTest extends TestCase
     {
         $invite = Invite::factory()->create(['expires_at' => now()->subMinute()]);
 
+        $expiredMessage = 'Este convite expirou. Entre em contato com quem enviou o convite e peça um novo link.';
+        $missingMessage = 'Não encontramos este convite. Entre em contato com quem enviou o convite e peça um novo link.';
+
         $this->getJson('/api/v1/invites/'.$invite->token)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('token');
+            ->assertJsonPath('errors.token.0', $expiredMessage);
 
         $this->postJson('/api/v1/invites/'.$invite->token.'/accept', [
             'name' => 'Pessoa', 'password' => 'password123', 'password_confirmation' => 'password123',
-        ])->assertUnprocessable()->assertJsonValidationErrors('token');
+        ])->assertUnprocessable()->assertJsonPath('errors.token.0', $expiredMessage);
 
-        $this->getJson('/api/v1/invites/'.Str::random(64))->assertNotFound();
+        $unknownToken = Str::random(64);
+
+        $this->getJson('/api/v1/invites/'.$unknownToken)
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.token.0', $missingMessage);
+
+        $this->postJson('/api/v1/invites/'.$unknownToken.'/accept', [
+            'name' => 'Pessoa', 'password' => 'password123', 'password_confirmation' => 'password123',
+        ])->assertUnprocessable()->assertJsonPath('errors.token.0', $missingMessage);
+
+        $invite->delete();
+
+        $this->getJson('/api/v1/invites/'.$invite->token)
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.token.0', $missingMessage);
     }
 
     public function test_public_api_can_accept_an_invite_without_a_browser_session(): void

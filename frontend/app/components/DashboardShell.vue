@@ -156,6 +156,10 @@ async function logout(): Promise<void> {
             <AppIcon class="sidebar-icon" name="categories" aria-hidden="true" />
             Categorias
           </NuxtLink>
+          <NuxtLink to="/users" exact-active-class="is-active">
+            <AppIcon class="sidebar-icon" name="users" aria-hidden="true" />
+            Usuários
+          </NuxtLink>
         </nav>
         <div class="sidebar-footer">Versão 0.1.0</div>
       </aside>

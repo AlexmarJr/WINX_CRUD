@@ -21,7 +21,7 @@ onMounted(async () => {
   try {
     invite.value = (await apiGet<InviteDetails>(`/api/v1/invites/${encodeURIComponent(token)}`)).data
   } catch (error) {
-    errorMessage.value = apiErrorMessage(error, 'Este convite não está mais disponível.')
+    errorMessage.value = apiErrorMessage(error, 'Este convite não está disponível. Entre em contato com quem enviou o convite e peça um novo link.')
   } finally {
     loading.value = false
   }
@@ -43,6 +43,7 @@ async function submit(): Promise<void> {
     }
 
     errorMessage.value = apiErrorMessage(error, 'Não foi possível aceitar o convite. Tente novamente.')
+    if (fieldErrors.value.token) invite.value = null
   } finally {
     pending.value = false
   }
@@ -53,7 +54,8 @@ async function submit(): Promise<void> {
   <AuthShell>
     <div class="form-intro">
       <span class="eyebrow"><span class="eyebrow-dot" /> Convite para a equipe</span>
-      <h2>Seu espaço <em>espera por você.</em></h2>
+      <h2 v-if="!loading && !invite">Convite <em>indisponível.</em></h2>
+      <h2 v-else>Seu espaço <em>espera por você.</em></h2>
       <p v-if="invite">Entre para {{ invite.company_name }} com o email {{ invite.email }}.</p>
     </div>
 

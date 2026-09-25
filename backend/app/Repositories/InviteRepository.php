@@ -10,7 +10,7 @@ class InviteRepository
 {
     public function accountExists(string $email): bool
     {
-        return User::query()->whereRaw('lower(email) = ?', [$email])->exists();
+        return User::withTrashed()->whereRaw('lower(email) = ?', [$email])->exists();
     }
 
     public function pendingForEmail(string $email): ?Invite
@@ -21,7 +21,7 @@ class InviteRepository
             ->first();
     }
 
-    public function findByTokenOrFail(string $token, bool $lock = false): Invite
+    public function findByToken(string $token, bool $lock = false): ?Invite
     {
         $query = Invite::query()->with('tenancy')->where('token', $token);
 
@@ -29,7 +29,7 @@ class InviteRepository
             $query->lockForUpdate();
         }
 
-        return $query->firstOrFail();
+        return $query->first();
     }
 
     /** @param array<string, mixed> $attributes */

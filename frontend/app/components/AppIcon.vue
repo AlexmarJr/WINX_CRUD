@@ -26,6 +26,7 @@ import {
   faTriangleExclamation,
   faUser,
   faUserPlus,
+  faUsers,
   faXmark
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -55,6 +56,7 @@ const icons = {
   trash: faTrash,
   warning: faTriangleExclamation,
   user: faUser,
+  users: faUsers,
   invite: faUserPlus,
   close: faXmark
 } satisfies Record<string, IconDefinition>

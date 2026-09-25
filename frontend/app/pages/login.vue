@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { apiErrorMessage } from '~/utils/api'
+
 useHead({ title: 'Entrar · Winx' })
 
 const auth = useAuthStore()
@@ -16,7 +18,7 @@ async function submit(): Promise<void> {
   } catch (error) {
     const response = error as { statusCode?: number }
     errorMessage.value = response.statusCode === 422
-      ? 'E-mail ou senha incorretos. Confira os dados e tente novamente.'
+      ? apiErrorMessage(error, 'E-mail ou senha incorretos. Confira os dados e tente novamente.')
       : 'Não foi possível entrar agora. Tente novamente em instantes.'
   } finally {
     pending.value = false
@@ -45,10 +47,13 @@ async function submit(): Promise<void> {
         <input id="login-password" v-model="form.password" type="password" name="password" placeholder="Sua senha" autocomplete="current-password" required>
       </div>
 
-      <label class="remember-option">
-        <input v-model="form.remember" type="checkbox" name="remember">
-        <span>Manter conectado</span>
-      </label>
+      <div class="login-options">
+        <label class="remember-option">
+          <input v-model="form.remember" type="checkbox" name="remember">
+          <span>Manter conectado</span>
+        </label>
+        <NuxtLink to="/forgot-password" class="back-link">Esqueceu a senha?</NuxtLink>
+      </div>
 
       <button class="button button-navy button-full" type="submit" :disabled="pending">
         {{ pending ? 'Entrando...' : 'Entrar' }} <AppIcon name="arrowRight" aria-hidden="true" />

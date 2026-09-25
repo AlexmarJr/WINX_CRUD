@@ -1,0 +1,28 @@
+services:
+  backend:
+    environment:
+      SESSION_SECURE_COOKIE: "true"
+  queue:
+    environment:
+      SESSION_SECURE_COOKIE: "true"
+  gateway:
+    image: caddy:2-alpine
+    pull_policy: missing
+    ports:
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,15 @@
+{$APP_DOMAIN} {
+    @backend path /api/* /sanctum/* /storage/*
+
+    handle @backend {
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        reverse_proxy frontend:3000
+    }
+}
+
+http://147.15.108.243 {
+    redir https://{$APP_DOMAIN}{uri} 308
+}

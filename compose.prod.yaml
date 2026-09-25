@@ -24,8 +24,8 @@ services:
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY}
-      APP_URL: http://app.137.131.197.12.sslip.io
-      FRONTEND_URL: http://app.137.131.197.12.sslip.io
+      APP_URL: ${PUBLIC_URL}
+      FRONTEND_URL: ${PUBLIC_URL}
       LOG_CHANNEL: stderr
       DB_CONNECTION: pgsql
       DB_HOST: postgres
@@ -34,7 +34,7 @@ services:
       DB_USERNAME: winx
       DB_PASSWORD: ${DB_PASSWORD}
       SESSION_DRIVER: database
-      SANCTUM_STATEFUL_DOMAINS: app.137.131.197.12.sslip.io
+      SANCTUM_STATEFUL_DOMAINS: ${APP_DOMAIN}
       CACHE_STORE: database
       QUEUE_CONNECTION: database
       SEARCH_DRIVER: database
@@ -82,7 +82,8 @@ services:
     pull_policy: never
     restart: unless-stopped
     environment:
-      NUXT_PUBLIC_API_BASE_URL: http://app.137.131.197.12.sslip.io
+      NUXT_PUBLIC_API_BASE_URL: ${PUBLIC_URL}
+      NODE_OPTIONS: --max-old-space-size=256
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 20s
@@ -93,6 +94,8 @@ services:
   gateway:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    ports:
+      - "80:80"
     volumes:
       - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:

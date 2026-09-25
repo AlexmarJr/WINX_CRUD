@@ -10,46 +10,74 @@ tem uns factories rodando, mas como fiz um esquema multi tenancy, botei um scrip
 
 # Winx
 
-Base do desafio técnico: Laravel 13, Nuxt 4 com Pinia e PostgreSQL em Docker.
+Implementação do desafio técnico de gerenciamento de produtos. A API usa Laravel 13 com PHP 8.4 e PostgreSQL; a interface usa Nuxt 4 e Pinia. O ambiente local também inicia Elasticsearch e um worker de filas.
 
-## Iniciar
+## Executar localmente
 
-Com Docker Desktop ativo:
+É necessário ter Docker com Compose e as portas 3000, 8000 e 5433 livres. Na raiz do repositório:
 
 ```sh
 docker compose up --build
 ```
 
-- Laravel: http://localhost:8000
-- Nuxt: http://localhost:3000
-- PostgreSQL: localhost:5433 (banco `winx`, usuário `winx`, senha `winx_local_dev`)
+O Compose instala as dependências, cria `backend/.env` a partir do exemplo se necessário, gera `APP_KEY`, executa as migrations e inicia backend, frontend, PostgreSQL, Elasticsearch e worker. Aguarde os serviços terminarem de inicializar.
 
-O Compose instala dependências, cria `backend/.env` e a chave da aplicação quando necessário, e executa as migrations ao iniciar.
+| Serviço | Endereço local |
+| --- | --- |
+| Frontend | http://localhost:3000 |
+| API Laravel | http://localhost:8000 |
+| PostgreSQL | localhost:5433 (banco e usuário `winx`) |
 
-## Acesso
+O Dockerfile do backend usa PHP 8.4; a versão do Laravel é fixada pelo `backend/composer.lock`. Os servidores `artisan serve` e `nuxt dev` do Compose são para desenvolvimento local.
 
-- Página inicial: http://localhost:3000/
-- Cadastro: http://localhost:3000/register
-- Login: http://localhost:3000/login
-- Área autenticada: http://localhost:3000/dashboard
+### Variáveis de ambiente
 
-O Nuxt usa sessões com cookies do Laravel Sanctum. O cadastro cria a empresa e o usuário no PostgreSQL, adiciona 5 categorias e 50 produtos iniciais para essa empresa, faz login automaticamente e abre a área autenticada. O login aceita a opção de manter a sessão ativa. A API é versionada em `/api/v1` e oferece `POST /api/v1/register`, `POST /api/v1/login`, `POST /api/v1/logout` e `GET /api/v1/user`.
+O arquivo `.env.example` da raiz contém `APP_VERSION` (versão exibida na sidebar) e `APP_ENV`. Copie-o para `.env` se quiser alterar esses valores. Com `APP_ENV=local`, a área autenticada mostra um link para a aplicação publicada; em `production`, oculta esse link. O `.env` da raiz não vai para o Git.
 
-As rotas autenticadas incluem o CRUD REST de `/api/v1/products` e `/api/v1/categories`, além da listagem e do detalhe de usuários da empresa em `/api/v1/users`. A listagem de produtos aceita `search`, `category_id`, `status`, `availability` (`in_stock` ou `out_of_stock`), `min_price`, `max_price`, `per_page`, `sort_by` e `sort_dir`. Os limites de preço são inclusivos, em reais; `max_price` deve ser maior ou igual a `min_price` quando ambos forem enviados.
+Para configurar as integrações, copie `backend/.env.example` para `backend/.env` antes de iniciar os containers e preencha:
 
-## Busca de produtos
+- `OPENROUTER_KEY` para habilitar o assistente de IA. Sem ela, essa funcionalidade retorna indisponibilidade.
+- `BREVO_SMTP_LOGIN`, `BREVO_KEY` (chave SMTP) e `MAIL_FROM_ADDRESS` verificado para enviar convites e links de recuperação de senha. Sem credenciais, use `MAIL_MAILER=log` para registrar os emails no log local.
+- `APP_URL` e `FRONTEND_URL` se acessar o projeto por outro endereço; os links enviados por email usam `FRONTEND_URL`.
 
-O Compose inicia um Elasticsearch 9.5.4 de nó único, acessível apenas pela rede interna dos containers. A busca com `search` em `GET /api/v1/products` usa nome, descrição e categoria, ordena por relevância quando não há ordenação explícita e respeita empresa, categoria, status e faixa de preço. `GET /api/v1/products/suggestions?q=mo` retorna até cinco sugestões de nomes da empresa autenticada. Sem `search`, a listagem continua usando PostgreSQL.
+As chaves permanecem somente no `backend/.env`, que é ignorado pelo Git. O Compose passa ao frontend apenas as variáveis públicas necessárias.
 
-Após subir o ambiente pela primeira vez, indexe os produtos que já existem no banco:
+## Primeiro acesso
+
+Abra http://localhost:3000/register. O cadastro cria uma empresa, seu usuário administrador, cinco categorias e 50 produtos iniciais vinculados à empresa. Em seguida, autentica o usuário. Também há login e recuperação de senha.
+
+Para criar dados de demonstração sem passar pelo cadastro, execute o seeder padrão:
+
+```sh
+docker compose exec backend php artisan db:seed
+```
+
+Ele cria a empresa Winx Demo, o administrador `demo@winx.test` com senha `password123` e, usando o mesmo serviço do cadastro, cinco categorias e 50 produtos. Uma nova execução não duplica essa empresa. Essas credenciais são apenas para demonstração local; o Compose não executa o seeder automaticamente.
+
+## API e funcionalidades
+
+As rotas estão em `/api/v1`. A autenticação usa sessão e cookies do Laravel Sanctum; produtos, categorias, usuários, convites e dashboard ficam protegidos por `auth:sanctum` e pela verificação de conta ativa.
+
+- Públicas: cadastro, login, solicitação e redefinição de senha, consulta e aceite de convite por token.
+- Autenticadas: CRUD REST de produtos e categorias; listagem, detalhe, edição e exclusão de usuários conforme a policy; convites; alteração de email e senha do perfil; resumo do dashboard; chat de IA.
+- Produtos: `GET /api/v1/products` aceita `search`, `category_id`, `status`, `availability` (`in_stock` ou `out_of_stock`), `min_price`, `max_price`, `page`, `per_page`, `sort_by` e `sort_dir`. `per_page` aceita de 1 a 100 itens. Os preços são informados em reais, com limites inclusivos.
+- Detalhe completo: `GET /api/v1/products/{id}`. O catálogo também oferece `GET /api/v1/products/max-price` e `GET /api/v1/products/suggestions?q=mo`.
+
+Cada consulta e alteração do catálogo é restrita à empresa do usuário autenticado. Produtos e categorias usam exclusão lógica. As validações de criação e edição usam Form Requests; os retornos do catálogo usam API Resources.
+
+## Logs assíncronos e busca
+
+Observers acompanham criação, atualização e exclusão de produtos e categorias. O Job `RecordInventoryLog` grava usuário, empresa, entidade e os campos alterados em `meta.old` e `meta.new`. O worker processa as filas `emails`, `search` e `default`.
+
+Com `SEARCH_DRIVER=elasticsearch`, a busca textual de produtos consulta Elasticsearch para relevância, sugestões e busca por nome, descrição e categoria. Sem termo de busca, a listagem usa PostgreSQL. Alterações de produtos são indexadas pela fila `search`; por isso podem levar alguns segundos para aparecer na busca.
+
+Em um banco novo, os produtos criados no cadastro são enviados à fila automaticamente. Execute a reindexação se restaurar um banco com produtos ou recriar o volume do Elasticsearch:
 
 ```sh
 docker compose exec backend php artisan products:reindex
 ```
 
-O comando reconstrói o índice a partir do PostgreSQL. Novas criações, atualizações e exclusões entram na fila `search` automaticamente. A fila `default` grava os logs de alterações; o serviço `queue` processa ambas. A busca pode levar alguns segundos para refletir uma alteração.
-
-Para usar o backend sem Elasticsearch, defina `SEARCH_DRIVER=database` e rode Laravel fora do Compose, ou ajuste essa variável nos serviços `backend` e `queue` do Compose.
+O Compose local desabilita a segurança do Elasticsearch e não expõe sua porta. Para rodar o backend sem ele, ajuste `SEARCH_DRIVER=database` nos serviços `backend` e `queue` do Compose, ou rode o Laravel fora do Compose.
 
 ## Testes
 
@@ -57,4 +85,4 @@ Para usar o backend sem Elasticsearch, defina `SEARCH_DRIVER=database` e rode La
 docker compose exec backend php artisan test --compact
 ```
 
-Elasticsearch é uma instância local de desenvolvimento; a configuração do Compose não expõe sua porta nem ativa autenticação. Para produção, configure um cluster protegido e `ELASTICSEARCH_URL`/`ELASTICSEARCH_API_KEY`.
+A suíte usa SQLite em memória e cobre autenticação, isolamento entre empresas, CRUD, filtros, paginação, convites, usuários, logs assíncronos e busca. Os testes do Elasticsearch simulam as chamadas HTTP; o comando de reindexação acima permite verificar uma instância real.

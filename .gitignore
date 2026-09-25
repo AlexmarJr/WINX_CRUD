@@ -1,3 +1,5 @@
 /.env
 /.env.*
 !/.env.example
+/DEPLOY_COMMANDS.md
+/DEPLOY_DIRECT.md

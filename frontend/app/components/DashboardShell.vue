@@ -6,6 +6,7 @@ defineProps<{ fitViewport?: boolean, inventoryViewport?: boolean }>()
 type CreatedInvite = { email: string, invite_url: string, company_name: string | null }
 
 const auth = useAuthStore()
+const appVersion = useRuntimeConfig().public.appVersion
 const loading = ref(true)
 const signingOut = ref(false)
 const userMenuOpen = ref(false)
@@ -161,7 +162,7 @@ async function logout(): Promise<void> {
             Usuários
           </NuxtLink>
         </nav>
-        <div class="sidebar-footer">Versão 0.1.0</div>
+        <div class="sidebar-footer">Versão {{ appVersion }}</div>
       </aside>
 
       <main class="dashboard-main">
